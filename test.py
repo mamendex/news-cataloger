@@ -505,6 +505,63 @@ def test_reports_subprocess():
         os.unlink(db)
 
 
+# ── graph ────────────────────────────────────────────────────────────────────
+def test_graph():
+    from agents.reader import Article
+    from coordinator import process_article
+    from storage.database import init_db
+    import graph
+
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+        db = f.name
+    with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
+        html = f.name
+    try:
+        init_db(db)
+        # insere artigos com entidades conhecidas para gerar co-ocorrências
+        for art in [
+            Article("Petrobras e Vale anunciam parceria",
+                    "https://ex.com/g1", "Petrobras e Vale firmaram acordo.", "2024-01-01", "Fonte"),
+            Article("Petrobras investe em energia",
+                    "https://ex.com/g2", "Petrobras amplia investimentos em energia.", "2024-01-02", "Fonte"),
+        ]:
+            process_article(art, db)
+
+        # modo básico: deve gerar HTML sem erro
+        path = graph.gerar_grafo(db_path=db, min_cooc=1, output=html)
+        if os.path.exists(path) and os.path.getsize(path) > 0:
+            ok("graph: gera arquivo HTML")
+        else:
+            fail("graph: gera arquivo HTML")
+
+        # HTML deve conter elementos básicos do pyvis
+        with open(path, encoding="utf-8") as f:
+            content = f.read()
+        if "vis-network" in content or "network" in content.lower():
+            ok("graph: HTML contem vis-network")
+        else:
+            fail("graph: HTML contem vis-network")
+
+        # min_cooc alto demais deve lançar ValueError
+        try:
+            graph.gerar_grafo(db_path=db, min_cooc=9999, output=html)
+            fail("graph: ValueError para min_cooc sem dados")
+        except ValueError:
+            ok("graph: ValueError para min_cooc sem dados")
+
+        # modo --temas não deve lançar erro
+        path2 = graph.gerar_grafo(db_path=db, min_cooc=1, incluir_temas=True, output=html)
+        if os.path.exists(path2):
+            ok("graph: modo --temas gera HTML sem erro")
+        else:
+            fail("graph: modo --temas gera HTML sem erro")
+
+    finally:
+        os.unlink(db)
+        if os.path.exists(html):
+            os.unlink(html)
+
+
 # ── main ─────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     print("=== Tests: news-cataloger ===\n")
@@ -529,6 +586,9 @@ if __name__ == "__main__":
 
     print("\n-- reports --")
     test_reports()
+
+    print("\n-- graph --")
+    test_graph()
 
     print("\n-- reports (subprocess) --")
     test_reports_subprocess()

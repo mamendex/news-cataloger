@@ -91,6 +91,12 @@ Relatorios:
   vizinhanca <X>   grafo de proximidade de 2 graus ao redor de X
   tudo             relatorio completo
 
+Visualizacao:
+  grafo            gera grafo.html com entidades e co-ocorrencias
+  grafo --temas    idem incluindo nos de tema
+  grafo --min N    filtra pares com menos de N co-ocorrencias (padrao: 2)
+  grafo --out ARQ  nome do arquivo de saida (padrao: grafo.html)
+
 Gestao de feeds:
   feed-add <url>        cadastra novo feed RSS (reativa se estava inativo)
   feed-off <id|trecho>  desativa feed pelo id ou trecho da URL
@@ -129,6 +135,26 @@ if __name__ == "__main__":
         reports.vizinhanca(" ".join(rest), db_path=db_path)
     elif cmd == "tudo":
         reports.relatorio_completo(db_path)
+    elif cmd == "grafo":
+        import graph, webbrowser, os
+        temas  = "--temas" in rest
+        output = "grafo.html"
+        min_c  = 2
+        if "--out" in rest:
+            output = rest[rest.index("--out") + 1]
+        if "--min" in rest:
+            min_c = int(rest[rest.index("--min") + 1])
+        try:
+            path = graph.gerar_grafo(
+                db_path=db_path,
+                min_cooc=min_c,
+                incluir_temas=temas,
+                output=output,
+            )
+            print(f"  [OK] Grafo salvo em: {os.path.abspath(path)}")
+            webbrowser.open(f"file://{os.path.abspath(path)}")
+        except ValueError as e:
+            print(f"  [AVISO] {e}")
     elif cmd == "feed-add":
         if not rest:
             print("Uso: python news.py feed-add <url>")
