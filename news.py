@@ -80,6 +80,9 @@ def _parse_args():
 USAGE = """\
 Uso: python news.py <comando> [args] [--db PATH]
 
+Coleta:
+  coletar          busca noticias dos feeds ativos e popula o banco
+
 Relatorios:
   resumo           totais gerais da base
   feeds            feeds RSS cadastrados e seus status
@@ -114,7 +117,10 @@ if __name__ == "__main__":
 
     cmd, rest = args[0], args[1:]
 
-    if cmd == "resumo":
+    if cmd == "coletar":
+        import coordinator
+        coordinator.run(db_path=db_path)
+    elif cmd == "resumo":
         reports.resumo_geral(db_path)
     elif cmd == "feeds":
         reports.listar_feeds(db_path)
