@@ -1,0 +1,5 @@
+# Lista de feeds RSS monitorados.
+# Uma URL por linha. Linhas começando com # são ignoradas.
+https://feeds.folha.uol.com.br/emcimadahora/rss091.xml
+https://agenciabrasil.ebc.com.br/rss/economia/feed.xml
+https://www.infomoney.com.br/feed/

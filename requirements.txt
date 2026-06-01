@@ -1,0 +1,4 @@
+feedparser
+spacy
+pyahocorasick
+pyvis

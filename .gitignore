@@ -1,0 +1,16 @@
+# banco de dados local (gerado em runtime)
+*.db
+
+# cache do Python
+__pycache__/
+*.pyc
+*.pyo
+
+# ambientes virtuais
+.venv/
+venv/
+env/
+
+# arquivos de sistema
+.DS_Store
+Thumbs.db
