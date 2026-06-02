@@ -101,8 +101,11 @@ Visualizacao:
   grafo --out ARQ  nome do arquivo de saida (padrao: grafo.html)
 
 Gestao de feeds:
-  feed-add <url>        cadastra novo feed RSS (reativa se estava inativo)
-  feed-off <id|trecho>  desativa feed pelo id ou trecho da URL
+  feed-add <url>                  cadastra novo feed RSS
+  feed-add <url> --scraper <id>   cadastra site via scraper HTML
+  feed-off <id|trecho>            desativa feed (historico preservado)
+
+Scrapers disponiveis: bndes_agencia, bndes_blog
 """
 
 
@@ -163,9 +166,16 @@ if __name__ == "__main__":
             print(f"  [AVISO] {e}")
     elif cmd == "feed-add":
         if not rest:
-            print("Uso: python news.py feed-add <url>")
+            print("Uso: python news.py feed-add <url> [--scraper <id>]")
             sys.exit(1)
-        feed_add(rest[0], db_path)
+        if "--scraper" in rest:
+            idx = rest.index("--scraper")
+            scraper_id = rest[idx + 1]
+            from storage.database import add_scraper_feed
+            add_scraper_feed(rest[0], scraper_id, db_path)
+            print(f"  [OK] Scraper '{scraper_id}' cadastrado: {rest[0]}")
+        else:
+            feed_add(rest[0], db_path)
     elif cmd == "feed-off":
         if not rest:
             print("Uso: python news.py feed-off <id|trecho da url>")

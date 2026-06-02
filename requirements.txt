@@ -3,3 +3,5 @@ spacy
 click
 pyahocorasick
 pyvis
+requests
+beautifulsoup4

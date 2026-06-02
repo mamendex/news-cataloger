@@ -54,13 +54,17 @@ def init_db(db_path: str = config.DB_PATH):
                 is_safe    INTEGER NOT NULL DEFAULT 1
             );
 
-            -- Feeds RSS monitorados. active=1 significa que o coordinator
-            -- vai buscar esse feed; active=0 desativa sem remover o histórico.
+            -- Feeds monitorados. type='rss' para feeds RSS padrão;
+            -- type='scraper' para sites sem RSS (o campo scraper identifica
+            -- qual função de scraping usar, ex: 'bndes_agencia').
+            -- active=0 desativa sem remover o histórico de notícias.
             CREATE TABLE IF NOT EXISTS feeds (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
                 url        TEXT UNIQUE NOT NULL,
                 name       TEXT,
                 active     INTEGER NOT NULL DEFAULT 1,
+                type       TEXT    NOT NULL DEFAULT 'rss',
+                scraper    TEXT,
                 added_at   TEXT NOT NULL DEFAULT (date('now'))
             );
 
@@ -88,12 +92,25 @@ def init_db(db_path: str = config.DB_PATH):
                 PRIMARY KEY (news_id, company_id)
             );
         """)
+    # migração: adiciona colunas novas em bancos criados antes desta versão
+    _migrate_feeds_table(db_path)
     # popula feeds e aliases definidos em config logo após criar o schema
     load_feeds_from_file(db_path)
     load_aliases_from_config(db_path)
 
 
 # ── Feeds ─────────────────────────────────────────────────────────────────────
+
+def _migrate_feeds_table(db_path: str = config.DB_PATH):
+    """Adiciona colunas type/scraper em bancos criados antes desta versão.
+    SQLite não suporta IF NOT EXISTS em ALTER TABLE, então usamos try/except."""
+    with get_conn(db_path) as conn:
+        for col, definition in [("type", "TEXT NOT NULL DEFAULT 'rss'"),
+                                 ("scraper", "TEXT")]:
+            try:
+                conn.execute(f"ALTER TABLE feeds ADD COLUMN {col} {definition}")
+            except Exception:
+                pass  # coluna já existe — ignorar
 
 def load_feeds_from_file(db_path: str = config.DB_PATH):
     """Lê feeds.txt e insere no banco URLs ainda não cadastradas.
@@ -115,12 +132,40 @@ def load_feeds_from_file(db_path: str = config.DB_PATH):
 
 
 def get_active_feeds(db_path: str = config.DB_PATH) -> list[str]:
-    """Retorna as URLs dos feeds ativos (active=1) — usada pelo coordinator."""
+    """Retorna URLs dos feeds RSS ativos (type='rss')."""
     with get_conn(db_path) as conn:
         rows = conn.execute(
-            "SELECT url FROM feeds WHERE active = 1 ORDER BY id"
+            "SELECT url FROM feeds WHERE active=1 AND type='rss' ORDER BY id"
         ).fetchall()
     return [r["url"] for r in rows]
+
+
+def get_active_scrapers(db_path: str = config.DB_PATH) -> list[dict]:
+    """Retorna scrapers ativos (type='scraper') como lista de dicts {url, scraper}."""
+    with get_conn(db_path) as conn:
+        rows = conn.execute(
+            "SELECT url, scraper FROM feeds WHERE active=1 AND type='scraper' ORDER BY id"
+        ).fetchall()
+    return [{"url": r["url"], "scraper": r["scraper"]} for r in rows]
+
+
+def add_scraper_feed(url: str, scraper_id: str, db_path: str = config.DB_PATH):
+    """Cadastra um feed do tipo scraper. Reativa se já existia inativo."""
+    with get_conn(db_path) as conn:
+        existing = conn.execute(
+            "SELECT id, active FROM feeds WHERE url=?", (url,)
+        ).fetchone()
+        if existing:
+            if not existing["active"]:
+                conn.execute(
+                    "UPDATE feeds SET active=1, type='scraper', scraper=? WHERE url=?",
+                    (scraper_id, url)
+                )
+            return
+        conn.execute(
+            "INSERT INTO feeds (url, type, scraper) VALUES (?, 'scraper', ?)",
+            (url, scraper_id)
+        )
 
 
 # ── Aliases ───────────────────────────────────────────────────────────────────

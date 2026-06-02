@@ -8,7 +8,7 @@ from storage.database import (
     get_or_create_theme, get_or_create_company,
     link_news_theme, link_news_company,
     resolve_alias, record_cooccurrences,
-    get_active_feeds, stats,
+    get_active_feeds, get_active_scrapers, stats,
 )
 
 
@@ -52,8 +52,23 @@ def run(feed_urls: list[str] = None, db_path: str = config.DB_PATH):
     if feed_urls is None:
         feed_urls = get_active_feeds(db_path)
 
-    print(f"[coordinator] fetching {len(feed_urls)} feed(s)...")
+    # coleta via RSS
+    print(f"[coordinator] fetching {len(feed_urls)} RSS feed(s)...")
     articles = fetch_all(feed_urls)
+
+    # coleta via scrapers HTML
+    scrapers = get_active_scrapers(db_path)
+    if scrapers:
+        from agents.scraper import scrape
+        print(f"[coordinator] scraping {len(scrapers)} site(s)...")
+        for s in scrapers:
+            try:
+                scraped = scrape(s["scraper"])
+                articles.extend(scraped)
+                print(f"  {s['scraper']}: {len(scraped)} artigo(s)")
+            except Exception as e:
+                print(f"  [scraper] falha em {s['scraper']}: {e}")
+
     print(f"[coordinator] {len(articles)} article(s) retrieved")
 
     new_count = 0
