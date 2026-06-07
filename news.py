@@ -70,6 +70,9 @@ def _parse_args():
     db_path = config.DB_PATH
     if "--db" in args:
         idx = args.index("--db")
+        if idx + 1 >= len(args):
+            print("Erro: '--db' requer um caminho como argumento.")
+            sys.exit(1)
         db_path = args[idx + 1]
         args = args[:idx] + args[idx + 2:]
     return args, db_path

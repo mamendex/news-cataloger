@@ -50,8 +50,14 @@ def _extract_gazetteer(text: str) -> list[str]:
 
     found = []
     text_lower = text.lower()
-    for _end, name in automaton.iter(text_lower):
-        found.append(name)
+    n = len(text_lower)
+    for end_idx, name in automaton.iter(text_lower):
+        start = end_idx - len(name) + 1
+        # rejeita matches que sejam substrings de palavras maiores (ex: "Oi" em "apoio")
+        before_ok = start == 0 or not text_lower[start - 1].isalnum()
+        after_ok = end_idx + 1 == n or not text_lower[end_idx + 1].isalnum()
+        if before_ok and after_ok:
+            found.append(name)
     return found
 
 
