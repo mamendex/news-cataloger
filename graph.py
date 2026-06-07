@@ -84,10 +84,12 @@ function mostrarPainel(edgeKey) {
   const list  = document.getElementById('panel-list');
   const title = document.getElementById('panel-title');
 
-  // label dos nos para o titulo
-  const parts = edgeKey.split('_');
-  const nomeA = nodeLabels[parts[0] + '_' + parts[1]] || parts[0];
-  const nomeB = nodeLabels[parts[2] + '_' + parts[3]] || parts[2];
+  // edgeKey = "e_A_e_B" — extrai os dois node ids separando no segundo "e_"
+  const sep   = edgeKey.indexOf('_e_', 1);
+  const nodeA = sep >= 0 ? edgeKey.substring(0, sep) : edgeKey;
+  const nodeB = sep >= 0 ? edgeKey.substring(sep + 1) : edgeKey;
+  const nomeA = nodeLabels[nodeA] || nodeA;
+  const nomeB = nodeLabels[nodeB] || nodeB;
   title.textContent = nomeA + '  ↔  ' + nomeB;
 
   list.innerHTML = '';
@@ -315,12 +317,14 @@ def gerar_grafo(
             f"Co-ocorrencias: {cnt}<br>"
             f"<i>Clique para ver as noticias</i>"
         )
-        # id da aresta = "e_A_e_B" — deve bater com a chave do edge_news
+        # id explícito = chave do edge_news — vis.js usa este id no selectEdge
+        edge_id = f"e_{a}_e_{b}"
         net.add_edge(
             f"e_{a}", f"e_{b}",
             value=cnt,
             title=title,
             color={"color": "#ffffff55"},
+            id=edge_id,
         )
 
     # salva HTML base e injeta painel
