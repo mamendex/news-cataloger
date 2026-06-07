@@ -94,6 +94,12 @@ Relatorios:
   vizinhanca <X>   grafo de proximidade de 2 graus ao redor de X
   tudo             relatorio completo
 
+Analise:
+  descobrir-temas            candidatos a novos temas via FTS5 (rapido)
+  descobrir-temas --python   idem via Python (fallback sem FTS5)
+  descobrir-temas --min N    exige ao menos N artigos por termo (padrao: 3)
+  descobrir-temas --top N    numero de candidatos (padrao: 20)
+
 Visualizacao:
   grafo            gera grafo.html com entidades e co-ocorrencias
   grafo --temas    idem incluindo nos de tema
@@ -144,6 +150,30 @@ if __name__ == "__main__":
         reports.vizinhanca(" ".join(rest), db_path=db_path)
     elif cmd == "tudo":
         reports.relatorio_completo(db_path)
+    elif cmd == "descobrir-temas":
+        # usa versao SQL (FTS5) por padrao; --python força a versao em memória
+        if "--python" in rest:
+            import descobrir_temas
+            candidatos = descobrir_temas.descobrir(
+                db_path=db_path,
+                min_freq=int(rest[rest.index("--min")+1]) if "--min" in rest else 3,
+                top_n=int(rest[rest.index("--top")+1]) if "--top" in rest else 20,
+            )
+        else:
+            import descobrir_temas_sql
+            candidatos = descobrir_temas_sql.descobrir_sql(
+                db_path=db_path,
+                min_docs=int(rest[rest.index("--min")+1]) if "--min" in rest else 3,
+                top_n=int(rest[rest.index("--top")+1]) if "--top" in rest else 20,
+            )
+        if candidatos:
+            import descobrir_temas as _dt
+            print(f"\n{'#':<3} {'Tema candidato':<28} {'Artigos':>7}")
+            print(f"{'-'*3} {'-'*28} {'-'*7}")
+            for i, c in enumerate(candidatos, 1):
+                print(f"{i:<3} {c['termo']:<28} {c['freq']:>7}")
+            print("\n-- Snippet para config.THEMES ---")
+            print(_dt.formatar_snippet(candidatos))
     elif cmd == "grafo":
         import graph, webbrowser, os
         temas  = "--temas" in rest
