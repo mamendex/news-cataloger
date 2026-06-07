@@ -11,6 +11,11 @@ __pycache__/
 venv/
 env/
 
+# arquivos gerados em runtime
+grafo.html
+grafo*.html
+lib/
+
 # arquivos de sistema
 .DS_Store
 Thumbs.db
