@@ -75,25 +75,15 @@ _PAINEL_JS = """
 </div>
 
 <script>
-// dict embutido: chave = "eA_eB" (ids ordenados), valor = [{title, url, date, source}]
+// noticias por par de entidades: chave = "e_A_e_B"
 const edgeNews = EDGE_NEWS_JSON;
+// noticias por entidade: chave = "e_A"
+const nodeNews = NODE_NEWS_JSON;
 
-function mostrarPainel(edgeKey) {
-  const noticias = edgeNews[edgeKey] || [];
-  const panel = document.getElementById('news-panel');
-  const list  = document.getElementById('panel-list');
-  const title = document.getElementById('panel-title');
-
-  // edgeKey = "e_A_e_B" — extrai os dois node ids separando no segundo "e_"
-  const sep   = edgeKey.indexOf('_e_', 1);
-  const nodeA = sep >= 0 ? edgeKey.substring(0, sep) : edgeKey;
-  const nodeB = sep >= 0 ? edgeKey.substring(sep + 1) : edgeKey;
-  const nomeA = nodeLabels[nodeA] || nodeA;
-  const nomeB = nodeLabels[nodeB] || nodeB;
-  title.textContent = nomeA + '  ↔  ' + nomeB;
-
+function renderizarLista(noticias) {
+  const list = document.getElementById('panel-list');
   list.innerHTML = '';
-  if (noticias.length === 0) {
+  if (!noticias || noticias.length === 0) {
     list.innerHTML = '<li><span class="empty">Nenhuma noticia encontrada.</span></li>';
   } else {
     noticias.forEach(function(n) {
@@ -104,18 +94,50 @@ function mostrarPainel(edgeKey) {
       list.appendChild(li);
     });
   }
-  panel.style.display = 'block';
+  document.getElementById('news-panel').style.display = 'block';
+}
+
+function mostrarAresta(edgeKey) {
+  // edgeKey = "e_A_e_B" — extrai os dois node ids
+  const sep   = edgeKey.indexOf('_e_', 1);
+  const nodeA = sep >= 0 ? edgeKey.substring(0, sep) : edgeKey;
+  const nodeB = sep >= 0 ? edgeKey.substring(sep + 1) : edgeKey;
+  const nomeA = nodeLabels[nodeA] || nodeA;
+  const nomeB = nodeLabels[nodeB] || nodeB;
+  document.getElementById('panel-title').textContent = nomeA + '  ↔  ' + nomeB;
+  renderizarLista(edgeNews[edgeKey]);
+}
+
+function mostrarNo(nodeKey) {
+  const nome = nodeLabels[nodeKey] || nodeKey;
+  document.getElementById('panel-title').textContent = nome;
+  renderizarLista(nodeNews[nodeKey]);
 }
 
 // aguarda o network do vis.js estar disponível
 function registrarEventos() {
   if (typeof network === 'undefined') { setTimeout(registrarEventos, 300); return; }
+
   network.on('selectEdge', function(params) {
     if (params.edges.length === 0) return;
-    const edgeId = params.edges[0];
-    mostrarPainel(edgeId);
+    // ignora se foi um clique em nó (vis.js às vezes dispara selectEdge junto)
+    if (params.nodes.length > 0) return;
+    mostrarAresta(params.edges[0]);
   });
-  network.on('deselectEdge', function() {
+
+  network.on('selectNode', function(params) {
+    if (params.nodes.length === 0) return;
+    mostrarNo(params.nodes[0]);
+  });
+
+  network.on('deselectEdge', function(params) {
+    // só fecha se não há nó selecionado
+    if (network.getSelectedNodes().length === 0) {
+      document.getElementById('news-panel').style.display = 'none';
+    }
+  });
+
+  network.on('deselectNode', function() {
     document.getElementById('news-panel').style.display = 'none';
   });
 }
@@ -141,22 +163,34 @@ def _query_noticias_par(conn, a_id: int, b_id: int, limit: int = 15) -> list[dic
         ORDER BY n.published_at DESC
         LIMIT ?
     """, (a_id, b_id, limit)).fetchall()
-    return [
-        {"title": r["title"], "url": r["url"],
-         "date": (r["published_at"] or "")[:10], "source": r["source"] or ""}
-        for r in rows
-    ]
+    return [_row_to_dict(r) for r in rows]
 
 
-def _injetar_painel(html: str, edge_news: dict, node_labels: dict) -> str:
+def _query_noticias_no(conn, entity_id: int, limit: int = 20) -> list[dict]:
+    """Retorna notícias que mencionam a entidade entity_id."""
+    rows = conn.execute("""
+        SELECT n.title, n.url, n.published_at, n.source
+        FROM news n
+        JOIN news_companies nc ON nc.news_id = n.id AND nc.company_id = ?
+        ORDER BY n.published_at DESC
+        LIMIT ?
+    """, (entity_id, limit)).fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
+def _row_to_dict(r) -> dict:
+    return {"title": r["title"], "url": r["url"],
+            "date": (r["published_at"] or "")[:10], "source": r["source"] or ""}
+
+
+def _injetar_painel(html: str, edge_news: dict, node_news: dict,
+                    node_labels: dict) -> str:
     """Insere o painel lateral e os dados JSON no HTML gerado pelo pyvis."""
-    edge_news_json   = json.dumps(edge_news,   ensure_ascii=False)
-    node_labels_json = json.dumps(node_labels, ensure_ascii=False)
-
-    painel = _PAINEL_JS.replace("EDGE_NEWS_JSON", edge_news_json)
-    labels = _LABELS_JS.replace("NODE_LABELS_JSON", node_labels_json)
-
-    # injeta antes do </body>
+    painel = (_PAINEL_JS
+              .replace("EDGE_NEWS_JSON", json.dumps(edge_news, ensure_ascii=False))
+              .replace("NODE_NEWS_JSON", json.dumps(node_news, ensure_ascii=False)))
+    labels = _LABELS_JS.replace("NODE_LABELS_JSON",
+                                 json.dumps(node_labels, ensure_ascii=False))
     return html.replace("</body>", labels + painel + "</body>")
 
 
@@ -227,15 +261,17 @@ def gerar_grafo(
             ).fetchall():
                 entidade_temas.setdefault(r["company_id"], set()).add(r["theme_id"])
 
-        # ── pré-carrega notícias por par de entidades ─────────────────────────
-        # chave do dict: "e_A_e_B" (mesma ordem do id da aresta no vis.js)
+        # ── pré-carrega notícias por par (arestas) e por entidade (nós) ─────────
         edge_news = {}
         for r in coocs:
             a, b = r["entity_a_id"], r["entity_b_id"]
             if a not in ids_no_grafo or b not in ids_no_grafo:
                 continue
-            key = f"e_{a}_e_{b}"
-            edge_news[key] = _query_noticias_par(conn, a, b)
+            edge_news[f"e_{a}_e_{b}"] = _query_noticias_par(conn, a, b)
+
+        node_news = {}
+        for eid in ids_no_grafo:
+            node_news[f"e_{eid}"] = _query_noticias_no(conn, eid)
 
     if not ids_no_grafo:
         raise ValueError(
@@ -331,7 +367,7 @@ def gerar_grafo(
     net.save_graph(output)
     with open(output, encoding="utf-8") as f:
         html = f.read()
-    html = _injetar_painel(html, edge_news, node_labels)
+    html = _injetar_painel(html, edge_news, node_news, node_labels)
     with open(output, "w", encoding="utf-8") as f:
         f.write(html)
 
