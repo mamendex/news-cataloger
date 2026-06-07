@@ -22,6 +22,8 @@ if hasattr(sys.stdout, "reconfigure"):
 
 def feed_add(url: str, db_path: str = config.DB_PATH):
     """Cadastra um novo feed RSS. Reativa se já existia inativo."""
+    from storage.database import init_db
+    init_db(db_path)  # garante schema completo em banco novo
     with get_conn(db_path) as conn:
         existing = conn.execute(
             "SELECT id, active FROM feeds WHERE url = ?", (url,)

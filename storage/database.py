@@ -186,7 +186,7 @@ def get_active_scrapers(db_path: str = config.DB_PATH) -> list[dict]:
 
 def add_scraper_feed(url: str, scraper_id: str, db_path: str = config.DB_PATH):
     """Cadastra um feed do tipo scraper. Reativa se já existia inativo."""
-    _migrate_feeds_table(db_path)  # garante colunas type/scraper em bancos antigos
+    init_db(db_path)  # garante schema completo (cria tabelas se banco é novo)
     with get_conn(db_path) as conn:
         existing = conn.execute(
             "SELECT id, active FROM feeds WHERE url=?", (url,)
