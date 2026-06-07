@@ -39,8 +39,10 @@ def init_db(db_path: str = config.DB_PATH):
             );
 
             CREATE TABLE IF NOT EXISTS companies (
-                id   INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL
+                id     INTEGER PRIMARY KEY AUTOINCREMENT,
+                name   TEXT UNIQUE NOT NULL,
+                cnpj   TEXT,
+                source TEXT
             );
 
             -- Aliases/sinônimos de empresas.
@@ -88,9 +90,27 @@ def init_db(db_path: str = config.DB_PATH):
                 PRIMARY KEY (news_id, company_id)
             );
         """)
+    _migrate_companies_columns(db_path)
     # popula feeds e aliases definidos em config logo após criar o schema
     load_feeds_from_file(db_path)
     load_aliases_from_config(db_path)
+
+
+def _migrate_companies_columns(db_path: str = config.DB_PATH):
+    """Adiciona colunas cnpj e source à tabela companies se ainda não existirem,
+    e garante o índice único em cnpj. Idempotente."""
+    with get_conn(db_path) as conn:
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(companies)").fetchall()}
+        if "cnpj" not in existing:
+            # SQLite não permite ADD COLUMN UNIQUE — adicionamos sem e criamos índice
+            conn.execute("ALTER TABLE companies ADD COLUMN cnpj TEXT")
+        if "source" not in existing:
+            conn.execute("ALTER TABLE companies ADD COLUMN source TEXT")
+        # garante o índice único em cnpj (seguro chamar mesmo se já existir)
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_cnpj "
+            "ON companies (cnpj) WHERE cnpj IS NOT NULL"
+        )
 
 
 # ── Feeds ─────────────────────────────────────────────────────────────────────
@@ -222,6 +242,42 @@ def get_or_create_company(name: str, db_path: str = config.DB_PATH) -> int:
         if row:
             return row["id"]
         cur = conn.execute("INSERT INTO companies (name) VALUES (?)", (name,))
+        return cur.lastrowid
+
+
+def upsert_company_with_cnpj(
+    name: str,
+    cnpj: Optional[str] = None,
+    source: Optional[str] = None,
+    db_path: str = config.DB_PATH,
+) -> int:
+    """Insere ou atualiza uma empresa com CNPJ e fonte.
+
+    Se já existir pelo nome: atualiza cnpj/source se ainda não preenchidos.
+    Se já existir pelo CNPJ: atualiza o nome canônico se mudou.
+    Retorna o id da empresa.
+    """
+    with get_conn(db_path) as conn:
+        row = conn.execute("SELECT id, cnpj, source FROM companies WHERE name = ?", (name,)).fetchone()
+        if row:
+            if (cnpj and not row["cnpj"]) or (source and not row["source"]):
+                conn.execute(
+                    "UPDATE companies SET cnpj = COALESCE(cnpj, ?), source = COALESCE(source, ?) WHERE id = ?",
+                    (cnpj, source, row["id"]),
+                )
+            return row["id"]
+
+        if cnpj:
+            existing = conn.execute("SELECT id FROM companies WHERE cnpj = ?", (cnpj,)).fetchone()
+            if existing:
+                conn.execute("UPDATE companies SET name = ?, source = COALESCE(source, ?) WHERE id = ?",
+                             (name, source, existing["id"]))
+                return existing["id"]
+
+        cur = conn.execute(
+            "INSERT INTO companies (name, cnpj, source) VALUES (?, ?, ?)",
+            (name, cnpj, source),
+        )
         return cur.lastrowid
 
 

@@ -106,6 +106,11 @@ Visualizacao:
 Gestao de feeds:
   feed-add <url>        cadastra novo feed RSS (reativa se estava inativo)
   feed-off <id|trecho>  desativa feed pelo id ou trecho da URL
+
+Importacao de empresas:
+  import-cvm            importa companhias abertas da CVM (requer internet)
+  import-cvm --file F   importa de arquivo CSV local (sem internet)
+  import-cvm --verbose  exibe cada empresa importada
 """
 
 
@@ -174,6 +179,17 @@ if __name__ == "__main__":
             print("Uso: python news.py feed-off <id|trecho da url>")
             sys.exit(1)
         feed_off(rest[0], db_path)
+    elif cmd == "import-cvm":
+        from importers import cvm as cvm_importer
+        from storage.database import init_db
+        init_db(db_path)
+        local_file = rest[rest.index("--file") + 1] if "--file" in rest else None
+        verbose    = "--verbose" in rest
+        try:
+            cvm_importer.run(db_path=db_path, local_file=local_file, verbose=verbose)
+        except (RuntimeError, FileNotFoundError) as e:
+            print(f"  [ERRO] {e}")
+            sys.exit(1)
     else:
         print(f"Comando desconhecido: '{cmd}'\n")
         print(USAGE)
