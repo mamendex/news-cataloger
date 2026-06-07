@@ -1,5 +1,14 @@
 # Lista de feeds RSS monitorados.
 # Uma URL por linha. Linhas começando com # são ignoradas.
+
+# Notícias gerais
 https://feeds.folha.uol.com.br/emcimadahora/rss091.xml
+https://www.cnnbrasil.com.br/feed/
+
+# Economia e negócios
 https://agenciabrasil.ebc.com.br/rss/economia/feed.xml
 https://www.infomoney.com.br/feed/
+https://exame.com/feed/
+
+# Política
+https://www.poder360.com.br/feed/
