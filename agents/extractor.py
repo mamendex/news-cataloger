@@ -108,7 +108,7 @@ def _get_nlp():
         try:
             import spacy
             _nlp = spacy.load(config.SPACY_MODEL)
-        except OSError:
+        except (OSError, ImportError):
             raise RuntimeError(
                 f"Modelo spaCy '{config.SPACY_MODEL}' não encontrado. "
                 "Execute setup.py para instalá-lo."

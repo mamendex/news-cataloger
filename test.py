@@ -94,15 +94,18 @@ def test_extractor():
         fail("extractor camada 3: whitelist permite siglas de empresas reais")
 
     # pipeline completo: deduplicação
-    companies = extract_companies(
-        "A Petrobras e a Petrobras S.A. divulgaram resultados. "
-        "O diretor da Mineradora Alfa informou crescimento."
-    )
-    petrobras_count = sum(1 for c in companies if "Petrobras" in c)
-    if petrobras_count == 1:
-        ok("extractor pipeline: deduplica resultados entre camadas")
-    else:
-        fail("extractor pipeline: deduplica resultados entre camadas", str(companies))
+    try:
+        companies = extract_companies(
+            "A Petrobras e a Petrobras S.A. divulgaram resultados. "
+            "O diretor da Mineradora Alfa informou crescimento."
+        )
+        petrobras_count = sum(1 for c in companies if "Petrobras" in c)
+        if petrobras_count == 1:
+            ok("extractor pipeline: deduplica resultados entre camadas")
+        else:
+            fail("extractor pipeline: deduplica resultados entre camadas", str(companies))
+    except RuntimeError as e:
+        print(f"  [SKIP] extractor pipeline — {e}")
 
 
 # ── storage ──────────────────────────────────────────────────────────────────
@@ -562,6 +565,21 @@ def test_graph():
             os.unlink(html)
 
 
+# ── testes de regressão (tests/) ─────────────────────────────────────────────
+
+def _run_regression_suite():
+    """Descobre e executa os módulos em tests/ que exportam run(ok, fail)."""
+    import importlib
+    import pkgutil
+    import tests
+
+    for _finder, module_name, _ispkg in pkgutil.iter_modules(tests.__path__):
+        mod = importlib.import_module(f"tests.{module_name}")
+        if callable(getattr(mod, "run", None)):
+            print(f"\n-- {module_name} --")
+            mod.run(ok, fail)
+
+
 # ── main ─────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     print("=== Tests: news-cataloger ===\n")
@@ -592,6 +610,9 @@ if __name__ == "__main__":
 
     print("\n-- reports (subprocess) --")
     test_reports_subprocess()
+
+    print("\n-- regression (tests/) --")
+    _run_regression_suite()
 
     print(f"\n{PASSED} passed, {FAILED} failed")
     sys.exit(1 if FAILED else 0)
