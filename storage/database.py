@@ -35,7 +35,17 @@ def init_db(db_path: str = config.DB_PATH):
                 summary      TEXT,
                 published_at TEXT,
                 source       TEXT,
+                content_hash TEXT,
                 created_at   TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_news_content_hash ON news(content_hash);
+
+            -- FTS5: índice full-text para descoberta de temas via SQL.
+            -- Espelhamos title+summary sem precisar carregar tudo em Python.
+            CREATE VIRTUAL TABLE IF NOT EXISTS news_fts USING fts5(
+                title, summary,
+                content='news', content_rowid='id',
+                tokenize='unicode61 remove_diacritics 2'
             );
 
             CREATE TABLE IF NOT EXISTS companies (
@@ -92,7 +102,8 @@ def init_db(db_path: str = config.DB_PATH):
                 PRIMARY KEY (news_id, company_id)
             );
         """)
-    # migração: adiciona colunas novas em bancos criados antes desta versão
+    # migrações: adiciona colunas novas em bancos criados antes desta versão
+    _migrate_news_table(db_path)
     _migrate_feeds_table(db_path)
     # popula feeds e aliases definidos em config logo após criar o schema
     load_feeds_from_file(db_path)
@@ -100,6 +111,30 @@ def init_db(db_path: str = config.DB_PATH):
 
 
 # ── Feeds ─────────────────────────────────────────────────────────────────────
+
+def _migrate_news_table(db_path: str = config.DB_PATH):
+    """Adiciona content_hash em bancos criados antes desta versão."""
+    with get_conn(db_path) as conn:
+        try:
+            conn.execute("ALTER TABLE news ADD COLUMN content_hash TEXT")
+        except Exception:
+            pass
+        try:
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_news_content_hash ON news(content_hash)")
+        except Exception:
+            pass
+        # cria FTS5 se não existe (pode falhar em SQLite sem fts5 — ignora)
+        try:
+            conn.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS news_fts USING fts5(
+                    title, summary,
+                    content='news', content_rowid='id',
+                    tokenize='unicode61 remove_diacritics 2'
+                )
+            """)
+        except Exception:
+            pass
+
 
 def _migrate_feeds_table(db_path: str = config.DB_PATH):
     """Adiciona colunas type/scraper em bancos criados antes desta versão.
@@ -242,15 +277,35 @@ def _has_capitalized_neighbor(name: str, context: str) -> bool:
 
 def upsert_news(title: str, url: str, summary: str, published_at: str, source: str,
                 db_path: str = config.DB_PATH) -> Optional[int]:
+    from storage.dedup import content_fingerprint
+    fingerprint = content_fingerprint(title, summary or "")
+
     with get_conn(db_path) as conn:
-        existing = conn.execute("SELECT id FROM news WHERE url = ?", (url,)).fetchone()
-        if existing:
-            return None  # já catalogada
+        # dedup por URL (rápido — indexed)
+        if conn.execute("SELECT 1 FROM news WHERE url = ?", (url,)).fetchone():
+            return None
+        # dedup por conteúdo (pega artigos republicados com URL diferente)
+        if conn.execute("SELECT 1 FROM news WHERE content_hash = ?",
+                        (fingerprint,)).fetchone():
+            return None
+
         cur = conn.execute(
-            "INSERT INTO news (title, url, summary, published_at, source) VALUES (?, ?, ?, ?, ?)",
-            (title, url, summary, published_at, source),
+            """INSERT INTO news (title, url, summary, published_at, source, content_hash)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (title, url, summary, published_at, source, fingerprint),
         )
-        return cur.lastrowid
+        news_id = cur.lastrowid
+
+        # mantém o índice FTS5 sincronizado
+        try:
+            conn.execute(
+                "INSERT INTO news_fts(rowid, title, summary) VALUES (?, ?, ?)",
+                (news_id, title, summary or ""),
+            )
+        except Exception:
+            pass  # FTS5 indisponível neste SQLite — continua sem índice
+
+        return news_id
 
 
 def get_or_create_theme(name: str, db_path: str = config.DB_PATH) -> int:
