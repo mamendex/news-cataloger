@@ -57,13 +57,20 @@ def fetch_csv(url: str = CVM_CSV_URL, timeout: int = 30) -> io.TextIOWrapper:
     return io.TextIOWrapper(response, encoding=CVM_ENCODING, errors="replace")
 
 
-def parse_csv(fileobj) -> list[dict]:
+def parse_csv(fileobj, debug: bool = False) -> list[dict]:
     """Lê o CSV e retorna lista de dicts com os campos relevantes.
     Filtra apenas registros com SIT_REG em SITUACOES_ATIVAS."""
     reader = csv.DictReader(fileobj, delimiter=CVM_SEPARATOR)
     companies = []
-    for row in reader:
+    sit_values_seen: set[str] = set()
+
+    for i, row in enumerate(reader):
+        if debug and i == 0:
+            print(f"[cvm:debug] colunas detectadas: {list(row.keys())}")
+
         sit = row.get("SIT_REG", "").strip().upper()
+        sit_values_seen.add(sit)
+
         if sit not in SITUACOES_ATIVAS:
             continue
         cnpj_raw  = row.get("CNPJ", "").strip()
@@ -76,6 +83,10 @@ def parse_csv(fileobj) -> list[dict]:
             "denom_social":  social,
             "denom_comerc":  comercial,
         })
+
+    if debug or len(companies) == 0:
+        print(f"[cvm:debug] valores únicos de SIT_REG encontrados: {sorted(sit_values_seen)}")
+
     return companies
 
 
@@ -133,6 +144,7 @@ def run(
     url: str = CVM_CSV_URL,
     local_file: Optional[str] = None,
     verbose: bool = False,
+    debug: bool = False,
 ) -> dict:
     """Ponto de entrada principal.
 
@@ -144,7 +156,7 @@ def run(
             raise FileNotFoundError(f"Arquivo local não encontrado: {local_file}")
         print(f"[cvm] lendo arquivo local: {local_file}")
         with open(local_file, encoding=CVM_ENCODING, errors="replace") as f:
-            companies = parse_csv(f)
+            companies = parse_csv(f, debug=debug)
     else:
         print(f"[cvm] baixando: {url}")
         try:
@@ -154,7 +166,7 @@ def run(
                 f"Falha ao baixar dados da CVM: {e}\n"
                 "Dica: baixe o arquivo manualmente e use --file <caminho>."
             ) from e
-        companies = parse_csv(fileobj)
+        companies = parse_csv(fileobj, debug=debug)
 
     print(f"[cvm] {len(companies)} companhias ativas encontradas")
     stats = import_into_db(companies, db_path=db_path, verbose=verbose)

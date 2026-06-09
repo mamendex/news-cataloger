@@ -111,6 +111,7 @@ Importacao de empresas:
   import-cvm            importa companhias abertas da CVM (requer internet)
   import-cvm --file F   importa de arquivo CSV local (sem internet)
   import-cvm --verbose  exibe cada empresa importada
+  import-cvm --debug    mostra colunas e valores de SIT_REG detectados
 """
 
 
@@ -185,8 +186,9 @@ if __name__ == "__main__":
         init_db(db_path)
         local_file = rest[rest.index("--file") + 1] if "--file" in rest else None
         verbose    = "--verbose" in rest
+        debug      = "--debug"   in rest
         try:
-            cvm_importer.run(db_path=db_path, local_file=local_file, verbose=verbose)
+            cvm_importer.run(db_path=db_path, local_file=local_file, verbose=verbose, debug=debug)
         except (RuntimeError, FileNotFoundError) as e:
             print(f"  [ERRO] {e}")
             sys.exit(1)
