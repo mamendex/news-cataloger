@@ -14,3 +14,7 @@ env/
 # arquivos de sistema
 .DS_Store
 Thumbs.db
+
+# assets gerados pelo pyvis (copiados automaticamente ao salvar o grafo)
+lib/
+grafo.html
