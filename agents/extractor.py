@@ -44,6 +44,10 @@ def _get_automaton():
 
 def _extract_gazetteer(text: str) -> list[str]:
     """Percorre o texto uma única vez buscando todas as empresas do gazetteer."""
+    # TODO: a busca é case-insensitive, o que faz "o gol" (esporte) bater em "Gol"
+    # (aérea). Solução: verificar text[start].isupper() após o word-boundary check
+    # para exigir inicial maiúscula no texto original. Isso também resolve "azul"
+    # (cor), "claro" (advérbio), "vale" (verbo), entre outros.
     automaton = _get_automaton()
     if automaton is None:
         return []
