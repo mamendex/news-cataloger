@@ -184,7 +184,7 @@ def gerar_grafo(
             label=e["name"],
             size=size,
             color=cor,
-            title=title,
+            tooltip=title,
             shape="dot",
         )
 
@@ -198,7 +198,7 @@ def gerar_grafo(
                 label=t["name"].upper(),
                 size=size,
                 color=COR_TEMA_NO,
-                title=title,
+                tooltip=title,
                 shape="diamond",
             )
         # arestas entidade → tema (tracejadas, mais finas)
@@ -226,7 +226,7 @@ def gerar_grafo(
         net.add_edge(
             f"e_{a}", f"e_{b}",
             value=cnt,          # controla espessura E força da mola
-            title=title,
+            tooltip=title,
             color={"color": "#ffffff55"},
         )
 
@@ -272,13 +272,13 @@ _POPUP_SCRIPT = """
 
   network.on('hoverNode', function (p) {
     var item = nodes.get(p.node);
-    if (item && item.title) show(item.title);
+    if (item && item.tooltip) show(item.tooltip);
   });
   network.on('blurNode', hide);
 
   network.on('hoverEdge', function (p) {
     var item = edges.get(p.edge);
-    if (item && item.title) show(item.title);
+    if (item && item.tooltip) show(item.tooltip);
   });
   network.on('blurEdge', hide);
 })();
