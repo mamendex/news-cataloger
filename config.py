@@ -91,7 +91,11 @@ COMPANY_BLOCKLIST = {
 
 # Siglas curtas (≤4 chars, all-caps) que SÃO empresas legítimas
 COMPANY_ACRONYM_WHITELIST = {
-    "TIM", "OI", "GPA", "WEG", "EDP", "BRF", "JBS", "GOL", "XP",
+    # 1–2 caracteres (comparados em maiúsculas)
+    "X",                                    # rede social X (ex-Twitter)
+    "OI",                                   # operadora Oi
+    # 3–4 caracteres, tudo maiúsculo
+    "TIM", "GPA", "WEG", "EDP", "BRF", "JBS", "GOL", "XP",
     "BTG", "CSN", "CVC", "MRV", "PDG", "CCR", "CPQ",
 }
 

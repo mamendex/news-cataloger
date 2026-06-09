@@ -122,12 +122,13 @@ def _is_false_positive(name: str) -> bool:
     if name in config.COMPANY_BLOCKLIST:
         return True
 
-    # siglas curtas em maiúsculas: aceitar só as da whitelist
-    if name.isupper() and len(name) <= 4 and name not in config.COMPANY_ACRONYM_WHITELIST:
-        return True
+    # nomes de 1–2 caracteres: aceitar somente os da whitelist (evita artigos,
+    # preposições e outros tokens curtos — ex: "O", "A", "os")
+    if len(name) <= 2:
+        return name.upper() not in config.COMPANY_ACRONYM_WHITELIST
 
-    # strings muito curtas dificilmente são nomes de empresas
-    if len(name) < 3:
+    # siglas de 3–4 caracteres, tudo maiúsculo: aceitar só as da whitelist
+    if name.isupper() and len(name) <= 4 and name not in config.COMPANY_ACRONYM_WHITELIST:
         return True
 
     return False
@@ -143,9 +144,7 @@ def _extract_ner(text: str) -> list[str]:
         # aceita apenas organizações — ignora PER (pessoas), GPE (locais) etc.
         if ent.label_ != "ORG":
             continue
-        name = ent.text.strip()
-        if not _is_false_positive(name):
-            found.append(name)
+        found.append(ent.text.strip())
 
     return found
 
@@ -178,6 +177,8 @@ def extract_companies(text: str) -> list[str]:
     seen = {}   # chave_normalizada → nome_original (preserva capitalização)
 
     def _add(name: str):
+        if _is_false_positive(name):
+            return
         key = _normalize_key(name)
         if key and key not in seen:
             seen[key] = name.strip()
