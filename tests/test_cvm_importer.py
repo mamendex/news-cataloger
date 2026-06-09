@@ -38,11 +38,11 @@ def run(ok, fail):
 
     # ── parse_csv ─────────────────────────────────────────────────────────────
     csv_content = (
-        "CNPJ;DENOM_SOCIAL;DENOM_COMERC;SIT_REG\n"
-        "33000167000101;PETROLEO BRASILEIRO S.A. PETROBRAS;Petrobras;ATIVO\n"
-        "60872504000123;BANCO BRADESCO S.A.;Bradesco;ATIVO\n"
-        "12345678000100;EMPRESA CANCELADA LTDA;;CANCELADO\n"
-        "98765432000100;SEM NOME COMERCIAL S.A.;;ATIVO\n"
+        "CNPJ_CIA;DENOM_SOCIAL;DENOM_COMERC;SIT\n"
+        "33000167000101;PETROLEO BRASILEIRO S.A. PETROBRAS;Petrobras;A\n"
+        "60872504000123;BANCO BRADESCO S.A.;Bradesco;A\n"
+        "12345678000100;EMPRESA CANCELADA LTDA;;C\n"
+        "98765432000100;SEM NOME COMERCIAL S.A.;;A\n"
     )
     fileobj = io.StringIO(csv_content)
     companies = parse_csv(fileobj)

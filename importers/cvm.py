@@ -29,7 +29,8 @@ CVM_CSV_URL = "https://dados.cvm.gov.br/dados/CIA_ABERTA/CAD/DADOS/cad_cia_abert
 CVM_ENCODING = "latin-1"   # encoding padrão dos arquivos CVM
 CVM_SEPARATOR = ";"
 
-SITUACOES_ATIVAS = {"ATIVO"}
+# Coluna "SIT" usa "A" para ativo no arquivo real da CVM
+SITUACOES_ATIVAS = {"A", "ATIVO"}
 
 
 def _format_cnpj(raw: str) -> str:
@@ -68,12 +69,12 @@ def parse_csv(fileobj, debug: bool = False) -> list[dict]:
         if debug and i == 0:
             print(f"[cvm:debug] colunas detectadas: {list(row.keys())}")
 
-        sit = row.get("SIT_REG", "").strip().upper()
+        sit = row.get("SIT", row.get("SIT_REG", "")).strip().upper()
         sit_values_seen.add(sit)
 
         if sit not in SITUACOES_ATIVAS:
             continue
-        cnpj_raw  = row.get("CNPJ", "").strip()
+        cnpj_raw  = row.get("CNPJ_CIA", row.get("CNPJ", "")).strip()
         social    = row.get("DENOM_SOCIAL", "").strip()
         comercial = row.get("DENOM_COMERC", "").strip()
         if not social:
