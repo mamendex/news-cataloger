@@ -178,6 +178,7 @@ def gerar_grafo(
             f"<b>{e['name']}</b><br>"
             f"Noticias: {e['news_count']}<br>"
             f"Tema principal: {tema or '—'}"
+            f'<a href="#" style="display:none"></a>'
         )
         net.add_node(
             f"e_{eid}",
