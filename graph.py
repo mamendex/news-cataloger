@@ -232,4 +232,30 @@ def gerar_grafo(
         )
 
     net.save_graph(output)
+
+    # Patch the generated HTML: the pyvis showPopup handler only looks up nodes,
+    # crashing with TypeError when hovering an edge (nodeId is an edge id).
+    # Replace it with a version that falls back to edges.get when nodes.get misses.
+    _patch_popup(output)
+
     return output
+
+
+def _patch_popup(html_path: str) -> None:
+    """Fix the showPopup TypeError that occurs when hovering graph edges."""
+    broken = (
+        "var nodeData = nodes.get([nodeId]);\n"
+        "                          popup.innerHTML = nodeData[0].title;"
+    )
+    fixed = (
+        "var nodeData = nodes.get([nodeId]);\n"
+        "                          var _item = nodeData[0] || edges.get([nodeId])[0];\n"
+        "                          if (!_item || _item.title == null) return;\n"
+        "                          popup.innerHTML = _item.title;"
+    )
+    with open(html_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    if broken in html:
+        html = html.replace(broken, fixed)
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(html)
