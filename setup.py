@@ -1,9 +1,10 @@
 import sys
 import subprocess
+import os
 
 REQUIRED_PYTHON = (3, 9)
-PACKAGES = ["feedparser", "spacy", "pyahocorasick"]
 SPACY_MODEL = "pt_core_news_sm"
+REQUIREMENTS_FILE = os.path.join(os.path.dirname(__file__), "requirements.txt")
 
 
 def check_python():
@@ -15,13 +16,15 @@ def check_python():
 
 
 def install_packages():
-    for pkg in PACKAGES:
-        print(f"[...] installing {pkg}")
-        r = subprocess.run([sys.executable, "-m", "pip", "install", pkg], capture_output=True, text=True)
-        if r.returncode != 0:
-            print(f"[FAIL] {pkg}\n{r.stderr}")
-            sys.exit(1)
-        print(f"[OK] {pkg}")
+    print(f"[...] installing dependencies from requirements.txt")
+    r = subprocess.run(
+        [sys.executable, "-m", "pip", "install", "-r", REQUIREMENTS_FILE],
+        capture_output=True, text=True,
+    )
+    if r.returncode != 0:
+        print(f"[FAIL] pip install\n{r.stderr}")
+        sys.exit(1)
+    print(f"[OK] all dependencies installed")
 
 
 def install_spacy_model():
