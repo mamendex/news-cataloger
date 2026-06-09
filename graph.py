@@ -178,7 +178,6 @@ def gerar_grafo(
             f"<b>{e['name']}</b><br>"
             f"Noticias: {e['news_count']}<br>"
             f"Tema principal: {tema or '—'}"
-            f'<a href="#" style="display:none"></a>'
         )
         net.add_node(
             f"e_{eid}",
@@ -232,30 +231,65 @@ def gerar_grafo(
         )
 
     net.save_graph(output)
-
-    # Patch the generated HTML: the pyvis showPopup handler only looks up nodes,
-    # crashing with TypeError when hovering an edge (nodeId is an edge id).
-    # Replace it with a version that falls back to edges.get when nodes.get misses.
-    _patch_popup(output)
-
+    _inject_custom_popup(output)
     return output
 
 
-def _patch_popup(html_path: str) -> None:
-    """Fix the showPopup TypeError that occurs when hovering graph edges."""
-    broken = (
-        "var nodeData = nodes.get([nodeId]);\n"
-        "                          popup.innerHTML = nodeData[0].title;"
-    )
-    fixed = (
-        "var nodeData = nodes.get([nodeId]);\n"
-        "                          var _item = nodeData[0] || edges.get([nodeId])[0];\n"
-        "                          if (!_item || _item.title == null) return;\n"
-        "                          popup.innerHTML = _item.title;"
-    )
+_POPUP_SCRIPT = """
+<style>
+#_nc_popup {
+  position: fixed;
+  background: #2d2d4e;
+  color: #f0f0f0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.6;
+  pointer-events: none;
+  display: none;
+  z-index: 9999;
+  max-width: 280px;
+  border: 1px solid #666;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.6);
+}
+</style>
+<script>
+(function () {
+  var popup = document.createElement('div');
+  popup.id = '_nc_popup';
+  document.body.appendChild(popup);
+
+  var mx = 0, my = 0;
+  document.addEventListener('mousemove', function (e) { mx = e.clientX; my = e.clientY; });
+
+  function show(html) {
+    popup.innerHTML = html;
+    popup.style.display = 'block';
+    popup.style.left = (mx + 16) + 'px';
+    popup.style.top  = (my - 8)  + 'px';
+  }
+  function hide() { popup.style.display = 'none'; }
+
+  network.on('hoverNode', function (p) {
+    var item = nodes.get(p.node);
+    if (item && item.title) show(item.title);
+  });
+  network.on('blurNode', hide);
+
+  network.on('hoverEdge', function (p) {
+    var item = edges.get(p.edge);
+    if (item && item.title) show(item.title);
+  });
+  network.on('blurEdge', hide);
+})();
+</script>
+"""
+
+
+def _inject_custom_popup(html_path: str) -> None:
+    """Inject a custom hover popup that works for both nodes and edges."""
     with open(html_path, "r", encoding="utf-8") as f:
         html = f.read()
-    if broken in html:
-        html = html.replace(broken, fixed)
-        with open(html_path, "w", encoding="utf-8") as f:
-            f.write(html)
+    html = html.replace("</body>", _POPUP_SCRIPT + "</body>", 1)
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html)
