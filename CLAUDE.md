@@ -28,8 +28,14 @@ news-cataloger/
 ## Setup
 
 ```bash
-python setup.py          # instala dependências + modelo spaCy pt_core_news_sm
+python -m venv .venv                 # cria o ambiente virtual (uma vez)
+source .venv/bin/activate            # ativa (Linux/Mac)
+# .venv\Scripts\activate             # ativa (Windows)
+python setup.py                      # instala dependências + modelo spaCy pt_core_news_sm
 ```
+
+**IMPORTANTE:** sempre use o Python do venv (`.venv/bin/python`) — nunca o Python do sistema.
+Para verificar: `which python` deve apontar para `.venv/bin/python`.
 
 ## Uso
 
@@ -49,7 +55,11 @@ python news.py tudo                 # relatório completo
 python news.py feed-add <url>       # adiciona feed RSS
 python news.py feed-off <id|trecho> # desativa feed (histórico preservado)
 
+python news.py import-cvm           # importa companhias abertas da CVM
+python news.py import-cvm --file F  # idem, de arquivo CSV local
+
 python test.py                      # roda todos os testes
+python tests/test_cvm_importer.py   # testes de regressão do importer CVM
 ```
 
 ## Schema do banco (news.db)
